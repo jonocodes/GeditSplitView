@@ -1,0 +1,9 @@
+[Gedit Plugin]
+Loader=python
+Module=SplitView
+IAge=2
+Name=Split View 3.0!
+Description=View 2 documents at once.
+Authors=Mike Doty <mike@psyguygames.com>
+Copyright=© Mike Doty 2010
+Website=http://www.psyguygames.com/

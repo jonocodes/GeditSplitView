@@ -3,8 +3,7 @@ Loader=python
 Module=SplitView
 IAge=3
 Name=Split View
-Description=Create a split view of a document
+Description=Show a split view of a single document
 Authors=Mike Doty <mike@psyguygames.com>, Jono Finger <jono@foodnotblogs.com>
 Copyright=© Mike Doty 2010, © Jono Finger 2012
 Website=https://github.com/jonocodes/GeditSplitView
-

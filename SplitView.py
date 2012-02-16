@@ -28,7 +28,8 @@ ui_string = """<ui>
   <menubar name="MenuBar">
     <menu name="ViewMenu" action="View">
       <placeholder name="ViewOps_2">
-        <menuitem name="ExamplePy" action="ExamplePy"/>
+        <menuitem name="ToggleSplitView" action="ToggleSplitView"/>
+        <menuitem name="ToggleSplitViewOrientation" action="ToggleSplitViewOrientation"/>
       </placeholder>
     </menu>
   </menubar>
@@ -44,6 +45,19 @@ class PluginHelper:
 
         self.ui_id = None
 
+
+
+
+        self.action_toggle_orientation = Gtk.Action(name="ToggleSplitViewOrientation",
+            label="Toggle Split View Orientation",
+            tooltip="Switch between horizontal and vertical splits", 
+            stock_id=Gtk.STOCK_REFRESH)
+
+        self.action_toggle_orientation.connect("activate", self.flip_split_view)
+        self.action_toggle_orientation.set_visible(False)
+
+
+
         # Add a "toggle split view" item to the View menu
         self.insert_menu_item(window)
 
@@ -56,9 +70,12 @@ class PluginHelper:
         # I hardly even know how this works, but it gets our encoding.
         try: self.encoding = Gedit.encoding_get_current()
         except: self.encoding = Gedit.gedit_encoding_get_current()
+
+
+
+
         
     def deactivate(self):
-        print ("deactivate")
         self.remove_menu_item()
 
         self.window = None
@@ -73,13 +90,15 @@ class PluginHelper:
 
         if (current_tab in self.split_views):
             self.end_split_view(None)
+            self.action_toggle_orientation.set_visible(False)
         else:
             self.split_view(None)
+            self.action_toggle_orientation.set_visible(True)
 
     # This function creates the split view.
-    def split_view(self, whatever = None, direction = "vertical", changing = False):
+    def split_view(self, whatever = None, direction = "horizontal", changing = False):
 
-        print ('split_view')
+        print ('split_view ' + direction)
 
         # Get the tab / document
         current_tab = self.window.get_active_tab()
@@ -89,7 +108,6 @@ class PluginHelper:
 
             if (current_tab in self.tabs_already_using_splitview):
                 return
-
             else:
                 self.tabs_already_using_splitview.append( current_tab )
 
@@ -100,7 +118,6 @@ class PluginHelper:
         # Create a new HPaned or VPaned object for the splitview.
         if (direction == "vertical"):
             self.split_views[current_tab] = Gtk.HPaned()
-
         else:
             self.split_views[current_tab] = Gtk.VPaned()
 
@@ -137,7 +154,7 @@ class PluginHelper:
             self.btn_cancel = Gtk.Button("End Splitview")
             self.btn_cancel.connect("clicked", self.end_split_view)
 
-            self.btn_flip = Gtk.Button("Vertical Splitview")
+            self.btn_flip = Gtk.Button("Horizontal Splitview")
             self.btn_flip.connect("clicked", self.flip_split_view)
 
             hbox.pack_start(self.btn_cancel, False, False, 0)
@@ -154,7 +171,7 @@ class PluginHelper:
             # Paned object to figure out how much room it can take up.  So, we're just
             # going to set a timer that'll check every 500 milliseconds until it
             # decides it can trust the width that the Paned object returns.
-            GObject.timeout_add(500, self.debug)
+            GObject.timeout_add(500, self.set_split_bar)
 
         current_tab.show_all()
 
@@ -187,6 +204,7 @@ class PluginHelper:
 
     # Basically recreate the split view.
     def flip_split_view(self, button):
+
         if (self.btn_flip.get_label() == "Vertical Splitview"):
             self.end_split_view(None, changing = True)
             self.split_view(None, "horizontal", changing = True)
@@ -203,7 +221,7 @@ class PluginHelper:
 
     # This function eventually sets the divider of the splitview at 50%.
     # It waits until the gui object returns a reasonable width.
-    def debug(self):
+    def set_split_bar(self):
         current_tab = self.window.get_active_tab()
 
         x = self.split_views[current_tab].get_property("max-position")
@@ -212,7 +230,6 @@ class PluginHelper:
         # and you have a viewable editing window of < 50 pixels, then, uh, sorry!
         if (x > 50):
             self.split_views[current_tab].set_position(x / 2)
-
             return False
 
         return True
@@ -224,11 +241,18 @@ class PluginHelper:
         
         # Create an action for the "Run in python" menu option
         # and set it to call the "run_document_in_python" function.
-        self.split_view_action = Gtk.Action(name="ExamplePy", label="Toggle Split View", tooltip="Create a split view of the current document", stock_id=Gtk.STOCK_REFRESH)
-        self.split_view_action.connect("activate", self.toggle_split_view)
+        action_toggle = Gtk.Action(name="ToggleSplitView",
+            label="Toggle Split View",
+            tooltip="Create a split view of the current document", 
+            stock_id=Gtk.STOCK_DND_MULTIPLE)
+
+        action_toggle.connect("activate", self.toggle_split_view)
         
         # Add the action with Ctrl + F5 as its keyboard shortcut.
-        self.action_group.add_action_with_accel(self.split_view_action, "<Ctrl><Shift>T")
+        self.action_group.add_action_with_accel(action_toggle, "<Ctrl><Shift>T")
+
+
+        self.action_group.add_action(self.action_toggle_orientation)
 
         # Add the action group.
         manager.insert_action_group(self.action_group, -1)
@@ -236,10 +260,8 @@ class PluginHelper:
         # Add the item to the "Views" menu.
         self.ui_id = manager.add_ui_from_string(ui_string)
 
-        manager.ensure_update()
         
     def remove_menu_item(self):
-        panel = self.window.get_side_panel()
         
         manager = self.window.get_ui_manager()
 

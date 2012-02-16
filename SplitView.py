@@ -36,7 +36,8 @@ ui_string = """<ui>
 </ui>
 """
 
-class PluginHelper:
+class SplitView:
+
     def __init__(self, plugin, window):
         self.window = window
         self.plugin = plugin
@@ -45,18 +46,13 @@ class PluginHelper:
 
         self.ui_id = None
 
-
-
-
         self.action_toggle_orientation = Gtk.Action(name="ToggleSplitViewOrientation",
             label="Toggle Split View Orientation",
             tooltip="Switch between horizontal and vertical splits", 
             stock_id=Gtk.STOCK_REFRESH)
 
-        self.action_toggle_orientation.connect("activate", self.flip_split_view)
+        self.action_toggle_orientation.connect("activate", self.toggle_orientation)
         self.action_toggle_orientation.set_visible(False)
-
-
 
         # Add a "toggle split view" item to the View menu
         self.insert_menu_item(window)
@@ -67,38 +63,31 @@ class PluginHelper:
 
         self.tabs_already_using_splitview = []
 
+        self.current_orientation = "horizontal"
+
         # I hardly even know how this works, but it gets our encoding.
         try: self.encoding = Gedit.encoding_get_current()
         except: self.encoding = Gedit.gedit_encoding_get_current()
-
-
-
-
         
     def deactivate(self):
         self.remove_menu_item()
 
         self.window = None
         self.plugin = None
-        
-    def update_ui(self):
-        return
 
-    def toggle_split_view(self, unused):
+    def toggle(self, unused):
 
         current_tab = self.window.get_active_tab()
 
         if (current_tab in self.split_views):
-            self.end_split_view(None)
+            self.end(False)
             self.action_toggle_orientation.set_visible(False)
         else:
-            self.split_view(None)
+            self.split_view(self.current_orientation, False)
             self.action_toggle_orientation.set_visible(True)
 
     # This function creates the split view.
-    def split_view(self, whatever = None, direction = "horizontal", changing = False):
-
-        print ('split_view ' + direction)
+    def split_view(self, orientation, changing):
 
         # Get the tab / document
         current_tab = self.window.get_active_tab()
@@ -116,7 +105,7 @@ class PluginHelper:
             old_other_view = self.split_views[current_tab].get_child2()
 
         # Create a new HPaned or VPaned object for the splitview.
-        if (direction == "vertical"):
+        if (orientation == "vertical"):
             self.split_views[current_tab] = Gtk.HPaned()
         else:
             self.split_views[current_tab] = Gtk.VPaned()
@@ -148,21 +137,8 @@ class PluginHelper:
             self.split_views[current_tab].add1(sw1)
             self.split_views[current_tab].add2(sw2)
 
-            # The next few lines of code just create some buttons.
-            hbox = Gtk.HBox()
-
-            self.btn_cancel = Gtk.Button("End Splitview")
-            self.btn_cancel.connect("clicked", self.end_split_view)
-
-            self.btn_flip = Gtk.Button("Horizontal Splitview")
-            self.btn_flip.connect("clicked", self.flip_split_view)
-
-            hbox.pack_start(self.btn_cancel, False, False, 0)
-            hbox.pack_start(self.btn_flip, False, False, 0)
-
             vbox = Gtk.VBox()
 
-            vbox.pack_start(hbox, False, False, 0)
             vbox.pack_start(self.split_views[current_tab], True, True, 0)
 
             each.add(vbox)
@@ -173,12 +149,13 @@ class PluginHelper:
             # decides it can trust the width that the Paned object returns.
             GObject.timeout_add(500, self.set_split_bar)
 
+        self.current_orientation = orientation
         current_tab.show_all()
 
     # This of course ends the split view... though I call this when switching
     # from left / right to top / bottom or vice versa.  If I'm doing that then
     # changing will be True I believe.
-    def end_split_view(self, unused, changing=False):
+    def end(self, changing):
         current_tab = self.window.get_active_tab()
         current_document = current_tab.get_document()
 
@@ -202,20 +179,14 @@ class PluginHelper:
 
                 self.tabs_already_using_splitview.pop(index)
 
-    # Basically recreate the split view.
-    def flip_split_view(self, button):
+    def toggle_orientation(self, button):
 
-        if (self.btn_flip.get_label() == "Vertical Splitview"):
-            self.end_split_view(None, changing = True)
-            self.split_view(None, "horizontal", changing = True)
+        self.end(True)
 
-            self.btn_flip.set_label("Horizontal Splitview")
-
+        if self.current_orientation == "horizontal":    
+            self.split_view("vertical", True)
         else:
-            self.end_split_view(None, changing = True)
-            self.split_view(None, "vertical", changing = True)
-
-            self.btn_flip.set_label("Vertical Splitview")
+            self.split_view("horizontal", True)
 
         current_tab = self.window.get_active_tab()
 
@@ -246,12 +217,12 @@ class PluginHelper:
             tooltip="Create a split view of the current document", 
             stock_id=Gtk.STOCK_DND_MULTIPLE)
 
-        action_toggle.connect("activate", self.toggle_split_view)
+        action_toggle.connect("activate", self.toggle)
         
         # Add the action with Ctrl + F5 as its keyboard shortcut.
         self.action_group.add_action_with_accel(action_toggle, "<Ctrl><Shift>T")
 
-
+        # Add the action for toggling the orientation
         self.action_group.add_action(self.action_toggle_orientation)
 
         # Add the action group.
@@ -260,7 +231,6 @@ class PluginHelper:
         # Add the item to the "Views" menu.
         self.ui_id = manager.add_ui_from_string(ui_string)
 
-        
     def remove_menu_item(self):
         
         manager = self.window.get_ui_manager()
@@ -279,13 +249,8 @@ class WindowActivatable(GObject.Object, Gedit.WindowActivatable):
         self.instances = {}
         
     def do_activate(self):
-        self.instances[self.window] = PluginHelper(self, self.window)
+        self.instances[self.window] = SplitView(self, self.window)
         
     def do_deactivate(self):
         if self.window in self.instances:
             self.instances[self.window].deactivate()
-        
-    def update_ui(self):
-        if self.window in self.instances:
-            self.instances[self.window].update_ui()
-
